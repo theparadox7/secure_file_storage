@@ -1,21 +1,29 @@
-from flask import Flask, request, jsonify, send_file
-from encryption import encrypt_file, decrypt_file
+from flask import Flask, request, render_template, redirect, url_for
+from werkzeug.utils import secure_filename
+import os
 
 app = Flask(__name__)
+app.config['UPLOAD_FOLDER'] = 'uploads/'
+app.config['SECRET_KEY'] = 'your_secret_key'
 
-@app.route('/upload', methods=['POST'])
+if not os.path.exists(app.config['UPLOAD_FOLDER']):
+    os.makedirs(app.config['UPLOAD_FOLDER'])
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/upload', methods=['GET', 'POST'])
 def upload_file():
-    file = request.files['file']
-    file.save('temp_file')
-    encrypt_file('temp_file', 'encrypted_file')
-    # Upload 'encrypted_file' to cloud storage
-    return jsonify({"message": "File uploaded and encrypted successfully."})
+    if request.method == 'POST':
+        file = request.files['file']
+        if file:
+            filename = secure_filename(file.filename)
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            file.save(filepath)
+            return redirect(url_for('index'))
+    return render_template('upload.html')
 
-@app.route('/download/<filename>', methods=['GET'])
-def download_file(filename):
-    # Download 'encrypted_file' from cloud storage
-    decrypt_file('encrypted_file', 'decrypted_file')
-    return send_file('decrypted_file', as_attachment=True)
 
 if __name__ == '__main__':
     app.run(debug=True)

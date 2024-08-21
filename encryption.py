@@ -1,25 +1,48 @@
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.backends import default_backend
+from flask import Flask, request, render_template, redirect, url_for
+from werkzeug.utils import secure_filename
+from cryptography.fernet import Fernet
 import os
 
-# Replace with your key management implementation
-KEY = os.urandom(32)  # Example key, replace with secure key management
+# Initialize the Flask app
+app = Flask(__name__)
 
-def encrypt_file(input_file, output_file):
-    cipher = Cipher(algorithms.AES(KEY), modes.ECB(), backend=default_backend())
-    encryptor = cipher.encryptor()
-    with open(input_file, 'rb') as f:
-        data = f.read()
-    encrypted_data = encryptor.update(data) + encryptor.finalize()
-    with open(output_file, 'wb') as f:
-        f.write(encrypted_data)
+# Configuration for file uploads
+app.config['UPLOAD_FOLDER'] = 'uploads/'
+app.config['SECRET_KEY'] = 'your_secret_key'
 
-def decrypt_file(input_file, output_file):
-    cipher = Cipher(algorithms.AES(KEY), modes.ECB(), backend=default_backend())
-    decryptor = cipher.decryptor()
-    with open(input_file, 'rb') as f:
-        encrypted_data = f.read()
-    decrypted_data = decryptor.update(encrypted_data) + decryptor.finalize()
-    with open(output_file, 'wb') as f:
-        f.write(decrypted_data)
+# Generate a key (only do this once and store it securely)
+key = Fernet.generate_key()
+cipher_suite = Fernet(key)
+
+# Create uploads folder if it doesn't exist
+if not os.path.exists(app.config['UPLOAD_FOLDER']):
+    os.makedirs(app.config['UPLOAD_FOLDER'])
+
+def encrypt_file(filepath):
+    """Encrypt the file at the specified path."""
+    with open(filepath, 'rb') as file:
+        file_data = file.read()
+    encrypted_data = cipher_suite.encrypt(file_data)
+    with open(filepath, 'wb') as file:
+        file.write(encrypted_data)
+
+@app.route('/')
+def index():
+    """Render the homepage."""
+    return render_template('index.html')
+
+@app.route('/upload', methods=['GET', 'POST'])
+def upload_file():
+    """Handle file uploads and encrypt the uploaded file."""
+    if request.method == 'POST':
+        file = request.files['file']
+        if file:
+            filename = secure_filename(file.filename)
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            file.save(filepath)
+            encrypt_file(filepath)
+            return redirect(url_for('index'))
+    return render_template('upload.html')
+
+if __name__ == '__main__':
+    app.run(debug=True)
